@@ -1,8 +1,8 @@
-# @else42/cf-worker-otel
+# cf-worker-otel
 
 Push metrics from Cloudflare Workers to Prometheus, Grafana Cloud, or any OTLP-compatible backend — without pulling in the full OpenTelemetry SDK.
 
-- **~200 lines**, zero runtime dependencies
+- ~200 lines, zero runtime dependencies
 - Counters, gauges, and histograms
 - OTLP/HTTP JSON with delta temporality
 - Built for `waitUntil()` — never blocks your response
@@ -14,9 +14,9 @@ Push metrics from Cloudflare Workers to Prometheus, Grafana Cloud, or any OTLP-c
 npm install @else42/cf-worker-otel
 ```
 
-> Also available on [GitHub Packages](https://github.com/elsbrock/cf-worker-otel/pkgs/npm/cf-worker-otel).
+## Usage
 
-## Quick Start
+### Cloudflare Worker
 
 ```typescript
 import { createMetrics } from "@else42/cf-worker-otel";
@@ -44,10 +44,9 @@ export default {
 };
 ```
 
-## SvelteKit on Cloudflare
+### SvelteKit on Cloudflare
 
 ```typescript
-// src/hooks.server.ts
 import { createMetrics } from "@else42/cf-worker-otel";
 import { sequence } from "@sveltejs/kit/hooks";
 import type { Handle } from "@sveltejs/kit";
@@ -76,43 +75,37 @@ const metricsHandle: Handle = async ({ event, resolve }) => {
   }
 };
 
-export const handle = sequence(metricsHandle, sessionHandle);
+export const handle = sequence(metricsHandle, yourAppHandle);
 ```
 
 ## API
 
 ### `createMetrics(config)`
 
-Returns a per-request collector. Create one per invocation, flush at the end.
+Creates a per-request metrics collector. Call once per invocation, flush at the end.
 
-| Option | Type | Required | Description |
-|---|---|---|---|
-| `serviceName` | `string` | yes | Maps to `service.name` in OTLP |
-| `endpoint` | `string` | no | OTLP HTTP endpoint URL |
-| `token` | `string` | no | Bearer token for the `Authorization` header |
-| `defaultAttributes` | `Record<string, string>` | no | Merged into every data point |
-| `histogramBounds` | `number[]` | no | Custom bucket boundaries (default: HTTP latency in ms) |
+| Option              | Type                       | Required | Description                                    |
+| ------------------- | -------------------------- | -------- | ---------------------------------------------- |
+| `serviceName`       | `string`                   | yes      | Maps to `service.name` in OTLP                 |
+| `endpoint`          | `string`                   | no       | OTLP HTTP endpoint URL                         |
+| `token`             | `string`                   | no       | Bearer token for the `Authorization` header    |
+| `defaultAttributes` | `Record<string, string>`   | no       | Merged into every data point                   |
+| `histogramBounds`   | `number[]`                 | no       | Custom bucket boundaries (default: HTTP ms)    |
 
-If `endpoint` or `token` is missing, `flush()` does nothing.
+If `endpoint` or `token` is missing, `flush()` does nothing — safe to instrument unconditionally.
 
-### `metrics.counter(name, value, attributes?)`
+### Metric types
 
-Monotonic counter. Same name + same attributes are aggregated within the request.
+**`counter(name, value, attributes?)`** — Monotonic counter. Same name + attributes are aggregated within the request.
 
-### `metrics.gauge(name, value, attributes?)`
+**`gauge(name, value, attributes?)`** — Point-in-time value. Last write wins per attribute set.
 
-Point-in-time value. Last write wins per attribute set.
+**`histogram(name, value, attributes?)`** — Single observation placed into a bucket.  
+Default bounds: `[5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000]` ms.
 
-### `metrics.histogram(name, value, attributes?)`
+**`flush()`** — Serializes to OTLP JSON, POSTs via `fetch()`. Pass to `ctx.waitUntil()`.
 
-Single observation placed into a bucket. Default bounds:
-`[5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000]` ms.
-
-### `metrics.flush()`
-
-Serializes everything to OTLP JSON and POSTs it. Pass to `ctx.waitUntil()`.
-
-## Prometheus Setup
+## Prometheus setup
 
 Enable the OTLP receiver (v2.47+):
 
@@ -120,7 +113,7 @@ Enable the OTLP receiver (v2.47+):
 --web.enable-otlp-receiver
 ```
 
-For delta temporality support (v3+):
+For delta temporality (v3+):
 
 ```
 --enable-feature=otlp-deltatocumulative
@@ -128,11 +121,11 @@ For delta temporality support (v3+):
 
 The receiver listens at `POST /api/v1/otlp/v1/metrics` on the Prometheus port.
 
-## How It Works
+## How it works
 
-Each `createMetrics()` call creates an isolated collector. Metrics are accumulated in memory during request handling, then serialized to a single OTLP/HTTP JSON payload and POSTed in `waitUntil()`. One fetch per worker invocation — no batching across requests, no persistent state.
+Each `createMetrics()` call creates an isolated collector. Metrics accumulate in memory during request handling, then serialize to a single OTLP/HTTP JSON payload and POST in `waitUntil()`. One fetch per worker invocation — no batching across requests, no persistent state.
 
-Delta temporality means each push contains only what happened in *this* request. Prometheus converts deltas to cumulative counters server-side.
+Delta temporality means each push contains only what happened during this request. Prometheus converts deltas to cumulative counters server-side.
 
 ## License
 
