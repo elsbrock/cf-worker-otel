@@ -1,4 +1,4 @@
-# @elsbrock/cf-worker-otel
+# @else42/cf-worker-otel
 
 Push metrics from Cloudflare Workers to Prometheus, Grafana Cloud, or any OTLP-compatible backend — without pulling in the full OpenTelemetry SDK.
 
@@ -11,15 +11,15 @@ Push metrics from Cloudflare Workers to Prometheus, Grafana Cloud, or any OTLP-c
 ## Install
 
 ```bash
-npm install @elsbrock/cf-worker-otel
+npm install @else42/cf-worker-otel
 ```
 
-> Published to [GitHub Packages](https://github.com/elsbrock/cf-worker-otel/pkgs/npm/cf-worker-otel). Add `@elsbrock:registry=https://npm.pkg.github.com` to your `.npmrc`.
+> Also available on [GitHub Packages](https://github.com/elsbrock/cf-worker-otel/pkgs/npm/cf-worker-otel).
 
 ## Quick Start
 
 ```typescript
-import { createMetrics } from "@elsbrock/cf-worker-otel";
+import { createMetrics } from "@else42/cf-worker-otel";
 
 export default {
   async fetch(request, env, ctx) {
@@ -48,7 +48,7 @@ export default {
 
 ```typescript
 // src/hooks.server.ts
-import { createMetrics } from "@elsbrock/cf-worker-otel";
+import { createMetrics } from "@else42/cf-worker-otel";
 import { sequence } from "@sveltejs/kit/hooks";
 import type { Handle } from "@sveltejs/kit";
 
