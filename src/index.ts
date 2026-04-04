@@ -27,6 +27,8 @@ export interface MetricsConfig {
 export interface Metrics {
   /** Increment a monotonic counter. */
   counter(name: string, value: number, attributes?: Record<string, string>): void;
+  /** Set a gauge to a current value (last write wins per attribute set). */
+  gauge(name: string, value: number, attributes?: Record<string, string>): void;
   /** Record a single histogram observation. */
   histogram(name: string, value: number, attributes?: Record<string, string>): void;
   /** Serialize and POST all collected metrics. Pass to ctx.waitUntil(). */
@@ -40,6 +42,11 @@ const DEFAULT_BOUNDS = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 // ─── Internal bookkeeping ────────────────────────────────────────
 
 interface CounterPoint {
+  value: number;
+  attributes: Record<string, string>;
+}
+
+interface GaugePoint {
   value: number;
   attributes: Record<string, string>;
 }
@@ -69,6 +76,7 @@ function buildPayload(
   startMs: number,
   endMs: number,
   counters: Map<string, CounterPoint[]>,
+  gauges: Map<string, GaugePoint[]>,
   histograms: Map<string, HistogramPoint[]>,
   bounds: number[],
 ) {
@@ -88,6 +96,19 @@ function buildPayload(
         })),
         aggregationTemporality: 1, // DELTA
         isMonotonic: true,
+      },
+    });
+  }
+
+  for (const [name, points] of gauges) {
+    metrics.push({
+      name,
+      gauge: {
+        dataPoints: points.map((p) => ({
+          timeUnixNano: endNano,
+          asDouble: p.value,
+          attributes: toOtlpAttrs(p.attributes),
+        })),
       },
     });
   }
@@ -138,6 +159,7 @@ function buildPayload(
  */
 export function createMetrics(config: MetricsConfig): Metrics {
   const counters = new Map<string, CounterPoint[]>();
+  const gauges = new Map<string, GaugePoint[]>();
   const histograms = new Map<string, HistogramPoint[]>();
   const bounds = config.histogramBounds ?? DEFAULT_BOUNDS;
   const startMs = Date.now();
@@ -166,6 +188,19 @@ export function createMetrics(config: MetricsConfig): Metrics {
         points.push({ value, attributes: merged });
       }
       counters.set(name, points);
+    },
+
+    gauge(name, value, attributes) {
+      const merged = merge(attributes);
+      const key = attrKey(merged);
+      const points = gauges.get(name) ?? [];
+      const existing = points.find((p) => attrKey(p.attributes) === key);
+      if (existing) {
+        existing.value = value; // last write wins
+      } else {
+        points.push({ value, attributes: merged });
+      }
+      gauges.set(name, points);
     },
 
     histogram(name, value, attributes) {
@@ -199,13 +234,15 @@ export function createMetrics(config: MetricsConfig): Metrics {
 
     async flush() {
       if (!config.endpoint || !config.token) return;
-      if (counters.size === 0 && histograms.size === 0) return;
+      if (counters.size === 0 && gauges.size === 0 && histograms.size === 0)
+        return;
 
       const payload = buildPayload(
         config.serviceName,
         startMs,
         Date.now(),
         counters,
+        gauges,
         histograms,
         bounds,
       );

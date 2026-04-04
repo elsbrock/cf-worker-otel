@@ -1,9 +1,16 @@
 {
-  "name": "cf-worker-otel",
-  "version": "0.1.0",
+  "name": "@elsbrock/cf-worker-otel",
+  "version": "0.2.0",
   "description": "Lightweight OTLP metrics client for Cloudflare Workers",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/elsbrock/cf-worker-otel.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
